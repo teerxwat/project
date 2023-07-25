@@ -1,0 +1,66 @@
+#include <ESP8266WiFi.h>
+#include <Wire.h>
+#include <Adafruit_MLX90614.h>
+
+const int sensorPin = 14;  // IR sensor pin connected to D5
+const int relayPin = 2;    // Relay control pin connected to D8
+#define SCL_PIN 12
+#define SDA_PIN 13
+#define ledPin 5
+
+Adafruit_MLX90614 mlx;  // Declare an instance of Adafruit_MLX90614
+
+bool isSensorValueChanged = false;
+bool isRelayOn = false;
+
+// Object detection status
+bool objectDetected = false;
+
+void setup() {  
+  Serial.begin(115200);
+  pinMode(sensorPin, INPUT);
+  pinMode(relayPin, OUTPUT);  // Set the relay pin as an output
+  pinMode(ledPin, OUTPUT);    // Set the LED pin as an output
+  while (!Serial)
+    ;
+
+  Wire.begin(SDA_PIN, SCL_PIN);
+
+  if (!mlx.begin()) {
+    Serial.println("Error connecting to MLX sensor. Check wiring.");
+    while (1)
+      ;
+  }
+}
+
+void displayObjectTempC() {
+  Serial.print("Object temperature = ");
+  Serial.print(mlx.readObjectTempC());
+  Serial.println("°C");
+  if (mlx.readObjectTempC() >= 35.4 && mlx.readObjectTempC() <= 37.4) {
+    digitalWrite(ledPin, HIGH);  // Turn on the LED
+  } else {
+    digitalWrite(ledPin, LOW);  // Turn off the LED
+  }
+}
+
+void SensorDetect() {
+  bool currentStatus = digitalRead(sensorPin);
+  if (currentStatus && !objectDetected) {
+    objectDetected = true;
+    Serial.println("Object no longer detected: 0        ");
+    // Serial.println(digitalRead(sensorPin));
+    digitalWrite(relayPin, HIGH);  // Turn on the relay (active LOW)
+  } else if (!currentStatus && objectDetected) {
+    objectDetected = false;
+    Serial.print("Object detected: 1        ");
+    displayObjectTempC();
+    // Serial.println(digitalRead(sensorPin));
+    digitalWrite(relayPin, LOW);  // Turn on the relay (active LOW)
+  }
+}
+
+void loop() {
+  SensorDetect();
+  delay(100);
+}

@@ -1,0 +1,33 @@
+#include <Wire.h>
+#include <Adafruit_MLX90614.h>
+
+#define SCL_PIN 12
+#define SDA_PIN 13
+
+Adafruit_MLX90614 mlx = Adafruit_MLX90614();
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial);
+
+  Wire.begin(SDA_PIN, SCL_PIN);
+
+  if (!mlx.begin()) {
+    Serial.println("Error connecting to MLX sensor. Check wiring.");
+    while (1);
+  }
+}
+
+// Function to display object temperature in Celsius
+void displayObjectTempC() {
+  Serial.print("Object temperature = "); 
+  Serial.print(mlx.readObjectTempC()); 
+  Serial.println("°C");
+}
+
+void loop() {
+  displayObjectTempC();
+
+  // Add a delay to prevent too frequent readings
+  delay(1000);
+}

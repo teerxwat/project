@@ -1,0 +1,203 @@
+import paho.mqtt.client as mqtt
+import cv2
+import numpy as np
+import time
+import os
+import glob
+import dlib
+import pickle
+import mysql.connector
+
+
+# MQTT broker details
+mqtt_broker = "server-mqtt.thddns.net"
+mqtt_port = 3333
+mqtt_username = "mqtt"
+mqtt_password = "admin1234"
+mqtt_topic = "sensor/detect"
+
+# Flag to keep track of file operation
+file_operation_active = False
+
+
+def on_connect(client, userdata, flags, rc):
+    print("Connected to MQTT Broker")
+    client.subscribe(mqtt_topic)
+
+
+def on_message(client, userdata, msg):
+    global file_operation_active
+
+    if msg.topic == mqtt_topic:
+        sensor_value = int(msg.payload)
+        print("Sensor Value:", sensor_value)
+
+        if sensor_value == 1 and not file_operation_active:
+            # Publish value 1 to control topic
+            client.publish("Control/FaceRecognition", "1")
+            file_operation_active = True
+            snapshot()  # Call snapshot function
+            sort_faces()  # Call sort_faces function
+            # crop_images()  # Call crop_images function
+        elif sensor_value == 0 and file_operation_active:
+            # Publish value 0 to control topic
+            client.publish("Control/FaceRecognition", "0")
+            file_operation_active = False
+
+
+def connect_to_mqtt_broker():
+    client = mqtt.Client()
+    client.username_pw_set(mqtt_username, mqtt_password)
+    client.on_connect = on_connect
+    client.on_message = on_message
+
+    client.connect(mqtt_broker, mqtt_port, 60)
+
+    client.loop_forever()
+
+
+def snapshot():
+    cap = cv2.VideoCapture("http://192.168.1.115:81/stream")
+    if not cap.isOpened():
+        print("Unable to connect to ESP32-CAM")
+        exit()
+
+    folder = "../../static/recognition/snap_picture_recognition"
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    for i in range(10):
+        ret, frame = cap.read()
+        if not ret:
+            print("Unable to capture frame from ESP32-CAM")
+            exit()
+        cv2.imwrite(os.path.join(folder, str(i) + ".jpg"), frame)
+        print("Image " + str(i) + " saved successfully")
+        time.sleep(0.01)  # delay for 1 millisecond
+
+    cap.release()
+
+
+def crop_images():
+    face_cascade = cv2.CascadeClassifier('../../libs/haarcascade_frontalface_default.xml')
+    path = "../../static/recognition/sort_picture_recognition/*.*"
+    img_list = glob.glob(path)
+    output_folder = "../../static/recognition/crop_picture_recognition"
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    def check_name(file):
+        filename = os.path.basename(file)
+        namefile = os.path.splitext(filename)[0]
+        
+        if namefile.isdigit():
+            return namefile
+        else:
+            return "default"
+
+
+    for file in img_list:
+        namefile = check_name(file)
+        # Read image
+        img = cv2.imread(file, 1)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # Detect faces
+        faces = face_cascade.detectMultiScale(gray, 1.4, 5)
+        # Find face with maximum width
+        max_w = 0
+        best_frame = None
+        for (x, y, w, h) in faces:
+            if w > max_w:
+                max_w = w
+                best_frame = (x, y, w, h)
+        print(namefile)
+        # Check if any faces were detected
+        if best_frame is not None:
+            # Crop and save image
+            x, y, w, h = best_frame
+            roi_color = img[y:y+h, x:x+w]
+            resized = cv2.resize(roi_color, (300, 300))
+            cv2.imwrite(os.path.join(output_folder, namefile + ".jpg"), resized)
+        else:
+            print("ไม่สามารถ Detect ได้  : " + namefile + ' Path : ' + file)
+
+def extract_face_features(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    face_cascade = cv2.CascadeClassifier('../../libs/haarcascade_frontalface_default.xml')
+    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    if len(faces) == 0:
+        return None
+    x, y, w, h = faces[0]
+
+    # Adjust the rectangle coordinates to include the entire head
+    x -= int(w * 0.1)
+    y -= int(h * 0.3)
+    w += int(w * 0.2)
+    h += int(h * 0.4)
+
+    # Ensure the rectangle coordinates are within the image boundaries
+    x = max(x, 0)
+    y = max(y, 0)
+    w = min(w, image.shape[1] - x)
+    h = min(h, image.shape[0] - y)
+
+    face = image[y:y+h, x:x+w]
+    return face
+
+
+# def extract_face_features(image):
+#     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+#     face_cascade = cv2.CascadeClassifier('../../libs/haarcascade_frontalface_default.xml')
+#     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+#     if len(faces) == 0:
+#         return None
+#     x, y, w, h = faces[0]
+#     face = image[y:y+h, x:x+w]
+#     return face
+
+def compute_face_quality(face):
+    gray = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
+    brightness = np.mean(gray)  # คำนวณความสว่างเฉลี่ยของภาพใบหน้า
+    sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()  # คำนวณความคมชัดของภาพใบหน้าโดยใช้ Laplacian variance
+
+    # ประเมินคุณภาพใบหน้าโดยใช้ความสว่างและความคมชัด
+    face_quality = (brightness + sharpness) / 2
+
+    return face_quality
+
+
+def select_best_face(folder):
+    face_images = []
+    face_scores = []
+
+    for filename in os.listdir(folder):
+        image = cv2.imread(os.path.join(folder, filename))
+        face = extract_face_features(image)
+        if face is not None:
+            face_images.append(face)
+            face_scores.append(compute_face_quality(face))  # Replace with your face quality assessment function
+
+    if len(face_images) == 0:
+        return None
+
+    # Find the index of the face with the highest quality score
+    best_score_index = np.argmax(face_scores)
+    return face_images[best_score_index]
+
+
+def sort_faces():
+    selected_face = select_best_face('../../static/recognition/snap_picture_recognition/')
+    if selected_face is not None:
+        if not os.path.exists('../../static/recognition/sort_picture_recognition'):
+            os.makedirs('../../static/recognition/sort_picture_recognition')
+
+        # Resize the selected face to 300x300
+        resized_face = cv2.resize(selected_face, (400, 400))
+        cv2.imwrite('../../static/recognition/sort_picture_recognition/1.jpg', resized_face)
+        print('Best face image saved in recognition/sort_picture_recognition/selected_face.jpg')
+    else:
+        print('No face detected in the images')
+
+
+if __name__ == "__main__":
+    connect_to_mqtt_broker()
