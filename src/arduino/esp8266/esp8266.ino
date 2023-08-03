@@ -103,8 +103,9 @@ void SensorDetect() {
   } else if (!currentStatus && objectDetected) {
     objectDetected = false;
     Serial.println("Object detected: 1");
-    displayObjectTempC();
     client.publish(mqttTopic, "1");  // Publish MQTT message with value 1
+    delay(1500);
+    displayObjectTempC();
   }
 }
 
