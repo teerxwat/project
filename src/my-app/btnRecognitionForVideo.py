@@ -67,6 +67,8 @@ def on_message(client, userdata, msg):
         print("Temperature Value:", temperature_value)
         # Perform actions based on temperature value
         # ...
+        global temperature
+        temperature = temperature_value
 
 
 def connect_to_mqtt_broker():
@@ -86,6 +88,10 @@ def RecognitionForVideo():
     # Connect to the broker
     client.connect("server-mqtt.thddns.net", 3333)
 
+    client_led = mqtt.Client()
+    client_led.username_pw_set(mqtt_username, mqtt_password)
+    client_led.connect(mqtt_broker, mqtt_port)
+
     cnx = mysql.connector.connect(
         host="localhost", port=3306, user="root", password="", database="db_facerecognition")
     mycursor = cnx.cursor()
@@ -100,7 +106,7 @@ def RecognitionForVideo():
     FACE_DESC, FACE_NAME = pickle.load(
         open('../../static/model/model.pk', 'rb'))
 
-    cap = cv2.VideoCapture('http://192.168.1.115:81/stream')
+    cap = cv2.VideoCapture('http://192.168.1.113:81/stream')
 
     last_insert_time = time.time()
     insert_interval = 60  # Time interval for data insertion (in seconds)
@@ -119,12 +125,17 @@ def RecognitionForVideo():
         else:
             return '\033[91m' + 'ไม่พบข้อมูลในระบบ'
 
-    def Insert(idPerson):
-        queryInsertDateDetect = "INSERT INTO tb_user_logs(id_user, report_date, timestamp, temperature, year) VALUES (%(id_user)s, %(report_date)s, NOW(), 0, %(year)s)"
+    def Insert(idPerson, temperature):
+        queryInsertDateDetect = "INSERT INTO tb_user_logs(id_user, report_date, timestamp, temperature, year) VALUES (%(id_user)s, %(report_date)s, NOW(), %(temperature)s, %(year)s)"
         val = {'id_user': idPerson, 'report_date': datetime.date.today(),
-               'year': datetime.date.today().year}
+               'temperature': temperature, 'year': datetime.date.today().year}
         # print("Insert Query:", queryInsertDateDetect)
         # print("Insert Values:", val)
+        # if temperature >= 35.4 and temperature <= 37.4:
+        if temperature >= 30 and temperature <= 37.4:
+            client_led.publish("control/led", "1")
+        else:
+            client_led.publish("control/led", "2")
         mycursor.execute(queryInsertDateDetect, val)
         cnx.commit()
 
@@ -139,15 +150,21 @@ def RecognitionForVideo():
     insert_counter = 0  # Counter for successful insertions
     max_insertions = 1  # Maximum number of insertions
 
+    mqtt_value_sent = False
+
     while True:
         _, frame = cap.read()
         if frame is not None:
+            if not mqtt_value_sent:
+                client.publish("control/led", "5")
+                mqtt_value_sent = True
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = face_detector.detectMultiScale(gray, 1.3, 5)
 
             # Check if 10 seconds have passed since the camera was turned on
             if time.time() - start_time > 10:
                 print("Exiting the function due to timeout")
+                client_led.publish("control/led", "3")
                 cap.release()
                 cv2.destroyAllWindows()
                 return
@@ -174,10 +191,11 @@ def RecognitionForVideo():
                         print(idPerson)
                         result = CheckID(idPerson)
                         if result:
-                            Insert(idPerson)
+                            Insert(idPerson, temperature)
                             insert_counter += 1
                             print('\033[92m' + 'บันทึกข้อมูลของ : ' +
                                   name + '\033[92m' + '   เรียบร้อยแล้ว' + '\033[0m')
+                            # client_led.publish("control/led", "1")
                             if insert_counter >= max_insertions:
                                 cap.release()
                                 cv2.destroyAllWindows()
@@ -185,6 +203,7 @@ def RecognitionForVideo():
                         else:
                             print('\033[91m' +
                                   'ไม่พบข้อมูลในฐานข้อมูล' + '\033[0m')
+                            client_led.publish("control/led", "3")
                             cv2.destroyAllWindows()
                             return
             cv2.imshow('frame', frame)

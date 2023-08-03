@@ -1,0 +1,2 @@
+
+mosquitto_pub -h server-mqtt.thddns.net -p "3333" -t "control/led" -m "1" -u "mqtt" -P "admin1234"

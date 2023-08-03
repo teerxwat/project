@@ -1,9 +1,10 @@
-#define R_PIN 16
+#define R_PIN 4
 #define G_PIN 5
-#define B_PIN 4
+#define B_PIN 16
 
-int temperature = 0;
+int temperatureLED = 0;
 int ir = 0;
+
 void setup() {
   pinMode(R_PIN, OUTPUT);
   pinMode(G_PIN, OUTPUT);
@@ -60,7 +61,7 @@ void successful() {
     analogWrite(B_PIN, 255);
     delay(100);
   }
-  if (temperature >= 35 && temperature <= 38) {
+  if (temperatureLED >= 35 && temperatureLED <= 38) {
     Serial.println("OPEN THE DOOR");
     analogWrite(R_PIN, 255);
     analogWrite(G_PIN, 0);
@@ -81,8 +82,4 @@ void working() {
 }
 
 void loop() {
-  alert();
-  ready();
-  successful();
-  working();
 }

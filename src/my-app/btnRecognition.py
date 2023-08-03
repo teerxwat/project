@@ -78,7 +78,7 @@ def connect_to_mqtt_broker():
 
 
 def snapshot():
-    cap = cv2.VideoCapture("http://192.168.1.115:81/stream")
+    cap = cv2.VideoCapture("http://192.168.1.113:81/stream")
     if not cap.isOpened():
         print("Unable to connect to ESP32-CAM")
         exit()

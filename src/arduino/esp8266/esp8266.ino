@@ -1,7 +1,7 @@
 #include <ESP8266WiFi.h>
 #include <Wire.h>
 #include <Adafruit_MLX90614.h>
-#include <PubSubClient.h> // MQTT library
+#include <PubSubClient.h>  // MQTT library
 
 const char *ssid = "thanita_2.4Ghz";
 const char *password = "aaoy2425";
@@ -11,14 +11,18 @@ const char *mqttUsername = "mqtt";
 const char *mqttPassword = "admin1234";
 const char *mqttTopic = "sensor/detect";
 const char *mqttTopicTemperature = "sensor/Temperature";
+const char *mqttTopicLED = "control/led";
 
-const int sensorPin = 14; // IR sensor pin connected to D5
-const int relayPin = 2;   // Relay control pin connected to D8
+const int sensorPin = 14;  // IR sensor pin connected to D5
+const int relayPin = 2;
 #define SCL_PIN 12
 #define SDA_PIN 13
-#define ledPin 5
+#define redPin 4
+#define greenPin 5
+#define bluePin 16
 
-Adafruit_MLX90614 mlx; // Declare an instance of Adafruit_MLX90614
+
+Adafruit_MLX90614 mlx;  // Declare an instance of Adafruit_MLX90614
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -30,19 +34,21 @@ bool objectDetected = false;
 
 float temperature = 0;
 
-void setup()
-{
+void setup() {
   Serial.begin(115200);
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
   pinMode(sensorPin, INPUT);
-  pinMode(relayPin, OUTPUT); // Set the relay pin as an output
-  pinMode(ledPin, OUTPUT);   // Set the LED pin as an output
+  pinMode(relayPin, OUTPUT);
+  digitalWrite(relayPin, HIGH);
+  setColor(255, 255, 255);
   while (!Serial)
     ;
 
   Wire.begin(SDA_PIN, SCL_PIN);
 
-  if (!mlx.begin())
-  {
+  if (!mlx.begin()) {
     Serial.println("Error connecting to MLX sensor. Check wiring.");
     while (1)
       ;
@@ -50,9 +56,8 @@ void setup()
 
   WiFi.begin(ssid, password);
 
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(1000);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
     Serial.println("Connecting to WiFi...");
   }
 
@@ -61,15 +66,12 @@ void setup()
   client.setServer(mqttServer, mqttPort);
   client.setCallback(callback);
 
-  while (!client.connected())
-  {
-    if (client.connect("ESP8266Client", mqttUsername, mqttPassword))
-    {
+  while (!client.connected()) {
+    if (client.connect("ESP8266Client", mqttUsername, mqttPassword)) {
       Serial.println("Connected to MQTT broker");
       client.subscribe(mqttTopic);
-    }
-    else
-    {
+      client.subscribe(mqttTopicLED);
+    } else {
       Serial.print("Failed to connect to MQTT broker, rc=");
       Serial.print(client.state());
       Serial.println(" Retrying in 5 seconds...");
@@ -78,51 +80,103 @@ void setup()
   }
 }
 
-void displayObjectTempC()
-{
+void displayObjectTempC() {
   // float temp = mlx.readObjectTempC()+1
   Serial.print("Object temperature = ");
   Serial.print(mlx.readObjectTempC());
   Serial.println("°C");
   String temperatureString = String(mlx.readObjectTempC(), 2);
   client.publish(mqttTopicTemperature, temperatureString.c_str());
-  if (mlx.readObjectTempC() >= 30.4 && mlx.readObjectTempC() <= 37.4)
-  {
-    digitalWrite(ledPin, HIGH); // Turn on the LED
-  }
-  else
-  {
-    digitalWrite(ledPin, LOW); // Turn off the LED
-  }
+  // if (mlx.readObjectTempC() >= 30.4 && mlx.readObjectTempC() <= 37.4) {
+  //   digitalWrite(ledPin, HIGH);  // Turn on the LED
+  // } else {
+  //   digitalWrite(ledPin, LOW);  // Turn off the LED
+  // }
 }
 
-void SensorDetect()
-{
+void SensorDetect() {
   bool currentStatus = digitalRead(sensorPin);
-  if (currentStatus && !objectDetected)
-  {
+  if (currentStatus && !objectDetected) {
     objectDetected = true;
     Serial.println("Object no longer detected: 0");
-    client.publish(mqttTopic, "0"); // Publish MQTT message with value 0
-  }
-  else if (!currentStatus && objectDetected)
-  {
+    client.publish(mqttTopic, "0");  // Publish MQTT message with value 0
+  } else if (!currentStatus && objectDetected) {
     objectDetected = false;
     Serial.println("Object detected: 1");
     displayObjectTempC();
-    client.publish(mqttTopic, "1"); // Publish MQTT message with value 1
+    client.publish(mqttTopic, "1");  // Publish MQTT message with value 1
   }
 }
 
-void callback(char *topic, byte *payload, unsigned int length)
-{
-  // Handle MQTT messages received (if needed)
+void setColor(int red, int green, int blue) {
+#ifdef COMMON_ANODE
+  red = 255 - red;
+  green = 255 - green;
+  blue = 255 - blue;
+#endif
+  analogWrite(redPin, red);
+  analogWrite(greenPin, green);
+  analogWrite(bluePin, blue);
 }
 
-void loop()
-{
-  if (!client.connected())
-  {
+void callback(char *topic, byte *payload, unsigned int length) {
+  Serial.print("Message arrived on topic: ");
+  Serial.println(topic);
+
+  String message;
+  for (int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.print("Payload: ");
+  Serial.println(message);
+
+  // Control the LED based on the received MQTT message
+  if (strcmp(topic, mqttTopicLED) == 0) {
+    if (strcmp(message.c_str(), "1") == 0) {  // สำเร็จ
+      for (int i = 0; i <= 3; i++) {
+        setColor(255, 0, 255);  // green
+        delay(500);
+        setColor(255, 255, 255);
+        delay(250);
+      }
+      setColor(255, 0, 255);  // green
+      digitalWrite(relayPin, LOW);
+      delay(3000);
+      digitalWrite(relayPin, HIGH);
+      setColor(255, 255, 255);
+    } else if (strcmp(message.c_str(), "2") == 0) {  // สำเร็จแต่ประตูไม่เปิด
+      for (int i = 0; i <= 3; i++) {
+        setColor(255, 0, 255);  // green
+        delay(500);
+        setColor(255, 255, 255);
+        delay(250);
+      }
+      setColor(0, 255, 255);  // red
+      delay(3000);
+      setColor(255, 255, 255);
+    } else if (strcmp(message.c_str(), "3") == 0) {  // ไม่พบข้อมูล
+      for (int i = 0; i <= 3; i++) {
+        setColor(0, 255, 255);  // red
+        delay(500);
+        setColor(255, 255, 255);
+        delay(250);
+      }
+      setColor(0, 255, 255);  // red
+      delay(3000);
+      setColor(255, 255, 255);
+    } else if (strcmp(message.c_str(), "4") == 0) {
+      setColor(255, 255, 0);                         // blue
+    } else if (strcmp(message.c_str(), "5") == 0) {  // กำลังทำงาน
+      setColor(0, 0, 255);                           // yellow
+    } else if (strcmp(message.c_str(), "0") == 0) {  // รอทำงาน
+      setColor(255, 255, 255);
+    }
+  }
+}
+
+
+void loop() {
+  if (!client.connected()) {
     reconnect();
   }
   client.loop();
@@ -130,16 +184,11 @@ void loop()
   delay(100);
 }
 
-void reconnect()
-{
-  while (!client.connected())
-  {
-    if (client.connect("ESP8266Client", mqttUsername, mqttPassword))
-    {
+void reconnect() {
+  while (!client.connected()) {
+    if (client.connect("ESP8266Client", mqttUsername, mqttPassword)) {
       client.subscribe(mqttTopic);
-    }
-    else
-    {
+    } else {
       Serial.print("Failed to connect to MQTT broker, rc=");
       Serial.print(client.state());
       Serial.println(" Retrying in 5 seconds...");
