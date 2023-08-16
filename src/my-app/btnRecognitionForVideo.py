@@ -122,8 +122,7 @@ def RecognitionForVideo():
 
     cap = cv2.VideoCapture('http://192.168.0.51:81/stream')
 
-    # cam pc
-    # cap = cv2.VideoCapture('0')
+    # cap = cv2.VideoCapture(0)
 
     last_insert_time = time.time()
     insert_interval = 60  # Time interval for data insertion (in seconds)
@@ -143,9 +142,9 @@ def RecognitionForVideo():
             return '\033[91m' + 'ไม่พบข้อมูลในระบบ'
 
     def Insert(idPerson, temperature):
-        queryInsertDateDetect = "INSERT INTO tb_user_logs(id_user, report_date, timestamp, temperature, year) VALUES (%(id_user)s, %(report_date)s, NOW(), %(temperature)s, %(year)s)"
-        val = {'id_user': idPerson, 'report_date': datetime.date.today(),
-               'temperature': temperature, 'year': datetime.date.today().year}
+        queryInsertDateDetect = "INSERT INTO tb_user_logs(studentid, report_date, timestamp, temperature) VALUES (%(studentid)s, %(report_date)s, NOW(), %(temperature)s)"
+        val = {'studentid': idPerson, 'report_date': datetime.date.today(),
+               'temperature': temperature}
         # print("Insert Query:", queryInsertDateDetect)
         # print("Insert Values:", val)
         # if temperature >= 35.4 and temperature <= 37.4:
@@ -179,7 +178,7 @@ def RecognitionForVideo():
             faces = face_detector.detectMultiScale(gray, 1.3, 5)
 
             # Check if 10 seconds have passed since the camera was turned on
-            if time.time() - start_time > 5:
+            if time.time() - start_time > 10:
                 print("Exiting the function due to timeout")
                 client_led.publish("control/led", "3")
                 cap.release()
