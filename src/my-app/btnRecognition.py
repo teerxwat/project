@@ -8,11 +8,19 @@ import dlib
 import pickle
 import mysql.connector
 
-# MQTT broker details
-mqtt_broker = "server-mqtt.thddns.net"
-mqtt_port = 3333
-mqtt_username = "mqtt"
-mqtt_password = "admin1234"
+# MQTT broker details -Home
+# mqtt_broker = "server-mqtt.thddns.net"
+# mqtt_port = 3333
+# mqtt_username = "mqtt"
+# mqtt_password = "admin1234"
+# mqtt_topic = "sensor/detect"
+# topic_Temperature = "sensor/Temperature"
+
+# MQTT broker details -AS Point
+mqtt_broker = "192.168.0.28"
+mqtt_port = 1883
+mqtt_username = ""
+mqtt_password = ""
 mqtt_topic = "sensor/detect"
 topic_Temperature = "sensor/Temperature"
 

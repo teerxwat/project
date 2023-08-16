@@ -9,11 +9,19 @@ import pickle
 import mysql.connector
 import datetime
 
-# MQTT broker details
-mqtt_broker = "server-mqtt.thddns.net"
-mqtt_port = 3333
-mqtt_username = "mqtt"
-mqtt_password = "admin1234"
+# MQTT broker details -Home
+# mqtt_broker = "server-mqtt.thddns.net"
+# mqtt_port = 3333
+# mqtt_username = "mqtt"
+# mqtt_password = "admin1234"
+# mqtt_topic = "sensor/detect"
+# topic_Temperature = "sensor/Temperature"
+
+# MQTT broker details -AS Point
+mqtt_broker = "192.168.0.28"
+mqtt_port = 1883
+mqtt_username = ""
+mqtt_password = ""
 mqtt_topic = "sensor/detect"
 topic_Temperature = "sensor/Temperature"
 
@@ -83,10 +91,16 @@ def RecognitionForVideo():
     client = mqtt.Client()
 
     # Set the username and password
-    client.username_pw_set("mqtt", "admin1234")
+    # client.username_pw_set("mqtt", "admin1234")
+
+    # Set the username and password
+    client.username_pw_set("", "")
 
     # Connect to the broker
-    client.connect("server-mqtt.thddns.net", 3333)
+    # client.connect("server-mqtt.thddns.net", 3333)
+
+    # Connect to the broker
+    client.connect("192.168.0.28", 1883)
 
     client_led = mqtt.Client()
     client_led.username_pw_set(mqtt_username, mqtt_password)
@@ -106,7 +120,10 @@ def RecognitionForVideo():
     FACE_DESC, FACE_NAME = pickle.load(
         open('../../static/model/model.pk', 'rb'))
 
-    cap = cv2.VideoCapture('http://192.168.1.113:81/stream')
+    cap = cv2.VideoCapture('http://192.168.0.51:81/stream')
+
+    # cam pc
+    # cap = cv2.VideoCapture('0')
 
     last_insert_time = time.time()
     insert_interval = 60  # Time interval for data insertion (in seconds)
@@ -156,13 +173,13 @@ def RecognitionForVideo():
         _, frame = cap.read()
         if frame is not None:
             if not mqtt_value_sent:
-                client.publish("control/led", "5")
+                client.publish("control/led", "4")
                 mqtt_value_sent = True
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = face_detector.detectMultiScale(gray, 1.3, 5)
 
             # Check if 10 seconds have passed since the camera was turned on
-            if time.time() - start_time > 10:
+            if time.time() - start_time > 5:
                 print("Exiting the function due to timeout")
                 client_led.publish("control/led", "3")
                 cap.release()

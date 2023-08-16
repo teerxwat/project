@@ -3,12 +3,22 @@
 #include <Adafruit_MLX90614.h>
 #include <PubSubClient.h>  // MQTT library
 
-const char *ssid = "thanita_2.4Ghz";
-const char *password = "aaoy2425";
-const char *mqttServer = "server-mqtt.thddns.net";
-const int mqttPort = 3333;
-const char *mqttUsername = "mqtt";
-const char *mqttPassword = "admin1234";
+// const char *ssid = "thanita_2.4Ghz";
+// const char *password = "aaoy2425";
+// const char *mqttServer = "server-mqtt.thddns.net";
+// const int mqttPort = 3333;
+// const char *mqttUsername = "mqtt";
+// const char *mqttPassword = "admin1234";
+// const char *mqttTopic = "sensor/detect";
+// const char *mqttTopicTemperature = "sensor/Temperature";
+// const char *mqttTopicLED = "control/led";
+
+const char *ssid = "ZTE 5G Home WiFi_DD9538";
+const char *password = "61019205";
+const char *mqttServer = "192.168.0.28";
+const int mqttPort = 1883;
+const char *mqttUsername = "";
+const char *mqttPassword = "";
 const char *mqttTopic = "sensor/detect";
 const char *mqttTopicTemperature = "sensor/Temperature";
 const char *mqttTopicLED = "control/led";
@@ -168,7 +178,7 @@ void callback(char *topic, byte *payload, unsigned int length) {
     } else if (strcmp(message.c_str(), "4") == 0) {
       setColor(255, 255, 0);                         // blue
     } else if (strcmp(message.c_str(), "5") == 0) {  // กำลังทำงาน
-      setColor(0, 0, 255);                           // yellow
+      setColor(0, 0, 255);                           // blue
     } else if (strcmp(message.c_str(), "0") == 0) {  // รอทำงาน
       setColor(255, 255, 255);
     }
